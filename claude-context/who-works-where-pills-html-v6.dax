@@ -1,0 +1,593 @@
+Who Works Where Pills HTML v.6 =
+-- v6: theme-first layout (themes = rows, countries = columns), flat "paper" look.
+-- Row/column crosshair hover uses :has() (Chromium / WebView2).
+-- Click a corner icon = theme definition; click a pill = list of its projects; click a project = its details.
+-- Every heavy piece of HTML is written ONCE and reused by the script:
+--   each agency logo once (_logos), each project card once (_projCards), each cell only holds a list of project codes.
+--   This keeps the measure's text far below the DAX maximum string length.
+VAR _selected =
+    FILTER ( VALUES ( BridgeProjectCountry[Country] ), NOT ISBLANK ( BridgeProjectCountry[Country] ) )
+VAR _countries =
+    FILTER ( ALL ( BridgeProjectCountry[Country] ), NOT ISBLANK ( BridgeProjectCountry[Country] ) )
+VAR _selThemes =
+    FILTER ( VALUES ( DimProject[Macro Thematic Focus] ), NOT ISBLANK ( DimProject[Macro Thematic Focus] ) )
+VAR _themes =
+    FILTER ( ALL ( DimProject[Macro Thematic Focus] ), NOT ISBLANK ( DimProject[Macro Thematic Focus] ) )
+VAR _anyOff =
+    COUNTROWS ( _countries ) > COUNTROWS ( _selected )
+        || COUNTROWS ( _themes ) > COUNTROWS ( _selThemes )
+VAR _agencies =
+    FILTER ( VALUES ( DimProject[Agency] ), NOT ISBLANK ( DimProject[Agency] ) )
+VAR _allStatus = FILTER ( ALL ( DimProject[Project Status] ), NOT ISBLANK ( DimProject[Project Status] ) )
+VAR _selStatus = FILTER ( VALUES ( DimProject[Project Status] ), NOT ISBLANK ( DimProject[Project Status] ) )
+VAR _statusTxt =
+    IF (
+        COUNTROWS ( _selStatus ) >= COUNTROWS ( _allStatus ),
+        "All project statuses",
+        "Project status: " & CONCATENATEX ( _selStatus, DimProject[Project Status], " + ", DimProject[Project Status], ASC )
+    )
+VAR _nCols = COUNTROWS ( _countries )
+VAR _nRows = COUNTROWS ( _themes )
+
+VAR _cells =
+    ADDCOLUMNS ( CROSSJOIN ( _selected, _selThemes ), "@n", COALESCE ( [# Projects], 0 ) )
+
+VAR _agCells =
+    FILTER (
+        ADDCOLUMNS ( CROSSJOIN ( _selected, _selThemes, _agencies ), "@a", COALESCE ( [# Projects], 0 ) ),
+        [@a] > 0
+    )
+
+-- Theme (row) data: full name, key, definition, count, colour bar, icon
+VAR _themeTot =
+    ADDCOLUMNS (
+        _themes,
+        "@ton", IF ( CONTAINSROW ( _selThemes, DimProject[Macro Thematic Focus] ), 1, 0 ),
+        "@t", IF ( CONTAINSROW ( _selThemes, DimProject[Macro Thematic Focus] ), COALESCE ( [# Projects], 0 ), 0 ),
+        "@nm", SUBSTITUTE ( DimProject[Macro Thematic Focus], "&", "&amp;" ),
+        "@k",
+            VAR _t = DimProject[Macro Thematic Focus]
+            RETURN
+                SWITCH ( TRUE (),
+                    CONTAINSSTRING ( _t, "Border Governance" ), "BG",
+                    CONTAINSSTRING ( _t, "Law Enforcement" ), "LE",
+                    CONTAINSSTRING ( _t, "Community" ), "CE",
+                    CONTAINSSTRING ( _t, "Cross-Border" ), "CB",
+                    "X"
+                ),
+        "@def",
+            VAR _t = DimProject[Macro Thematic Focus]
+            RETURN
+                SWITCH ( TRUE (),
+                    CONTAINSSTRING ( _t, "Border Governance" ),
+                        "The legal, institutional and policy architecture that determines how borders are managed. National border management strategies, standard operating procedures, migration data systems such as MIDAS, national coordination frameworks, capacity building of border personnel, and the physical infrastructure (border posts, solar systems, patrol equipment, IT systems) that gives the state a functioning presence at points of entry.",
+                    CONTAINSSTRING ( _t, "Law Enforcement" ),
+                        "The operational response to terrorism, organized crime, illicit trafficking and cross-border security threats. Intelligence, counter-terrorism investigations, IED detection and forensics, weapons and ammunition management and destruction, counter-terrorism financing, biometric identification, digital forensics, INTERPOL operations and tools, fusion cells, passenger data systems, prison radicalization detection, professionalization of border security forces, joint law enforcement operations.",
+                    CONTAINSSTRING ( _t, "Community" ),
+                        "The human dimension of border stability, investing in the communities most exposed to violence, recruitment, displacement and marginalization. Community dialogue and social cohesion, civil-military trust-building, farmer-herder conflict resolution, livelihoods support, access to health and education, legal identity including civil registration, resilience indices, explosive ordnance risk education, youth and women's empowerment, psychosocial support.",
+                    CONTAINSSTRING ( _t, "Cross-Border" ),
+                        "The connective tissue that makes the other pillars work across borders and over time. Cross-border coordination mechanisms, joint border commissions, tri-border meetings, regional conferences, high-level diplomatic facilitation, study visits, security perception studies, threat assessments, regional indices, programme evaluations, learning systems.",
+                    ""
+                ),
+        "@hex",
+            VAR _t = DimProject[Macro Thematic Focus]
+            RETURN
+                SWITCH ( TRUE (),
+                    CONTAINSSTRING ( _t, "Border Governance" ), "#4A3810",
+                    CONTAINSSTRING ( _t, "Law Enforcement" ), "#8C6D1E",
+                    CONTAINSSTRING ( _t, "Community" ), "#C9A227",
+                    CONTAINSSTRING ( _t, "Cross-Border" ), "#F5D061",
+                    "#8C6D1E"
+                ),
+        "@icon",
+            VAR _t = DimProject[Macro Thematic Focus]
+            VAR _o = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'>"
+            RETURN
+                SWITCH ( TRUE (),
+                    CONTAINSSTRING ( _t, "Border Governance" ),
+                        _o & "<path d='M3 21l18 0'/><path d='M4 21v-15a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v15'/><path d='M9 21v-8a3 3 0 0 1 6 0v8'/></svg>",
+                    CONTAINSSTRING ( _t, "Law Enforcement" ),
+                        _o & "<path d='M18.9 7a8 8 0 0 1 1.1 5v1a6 6 0 0 0 .8 3'/><path d='M8 11a4 4 0 0 1 8 0v1a10 10 0 0 0 2 6'/><path d='M12 11v2a14 14 0 0 0 2.5 8'/><path d='M8 15a18 18 0 0 0 1.8 6'/><path d='M4.9 19a22 22 0 0 1 -.9 -7v-1a8 8 0 0 1 12 -6.95'/></svg>",
+                    CONTAINSSTRING ( _t, "Community" ),
+                        _o & "<path d='M10 13a2 2 0 1 0 4 0a2 2 0 0 0 -4 0'/><path d='M8 21v-1a2 2 0 0 1 2 -2h4a2 2 0 0 1 2 2v1'/><path d='M15 5a2 2 0 1 0 4 0a2 2 0 0 0 -4 0'/><path d='M17 10h2a2 2 0 0 1 2 2v1'/><path d='M5 5a2 2 0 1 0 4 0a2 2 0 0 0 -4 0'/><path d='M3 13v-1a2 2 0 0 1 2 -2h2'/></svg>",
+                    CONTAINSSTRING ( _t, "Cross-Border" ),
+                        _o & "<path d='M7 10h14l-4 -4'/><path d='M17 14h-14l4 4'/></svg>",
+                    ""
+                )
+    )
+
+-- Country (column) data. "@s" is a CSS-safe key used to build the column hover rules.
+VAR _countriesS =
+    ADDCOLUMNS (
+        _countries,
+        "@s",
+            SUBSTITUTE (
+                SUBSTITUTE (
+                    SUBSTITUTE ( SUBSTITUTE ( BridgeProjectCountry[Country], " ", "" ), "'", "" ),
+                    "’", ""
+                ),
+                "ô", "o"
+            )
+    )
+
+VAR _rows =
+    ADDCOLUMNS (
+        _countriesS,
+        "@on", IF ( CONTAINSROW ( _selected, BridgeProjectCountry[Country] ), 1, 0 ),
+        "@tot", IF ( CONTAINSROW ( _selected, BridgeProjectCountry[Country] ), COALESCE ( [# Projects], 0 ), 0 )
+    )
+
+-- Column hover rules, one set per country (static CSS)
+VAR _hoverCss =
+    CONCATENATEX (
+        _countriesS,
+        ".g:has(.k" & [@s] & ":not(.off):hover) .k" & [@s] & ":not(.off){background:#FFFBEA!important}"
+            & ".g:has(.k" & [@s] & ":not(.off):hover) .rw:not(.offrw):hover>.k" & [@s] & ":not(.off){background:#FFF1B8!important}"
+            & ".g:has(.k" & [@s] & ":not(.off):hover) .c-ch.k" & [@s] & ":not(.off) .cty{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:4px}",
+        ""
+    )
+
+-- ONE <img> per agency. The script clones it wherever a logo is needed, so a long
+-- SharePoint URL (or a data: URI) is written into the measure only once per agency.
+VAR _logos =
+    CONCATENATEX (
+        _agencies,
+        VAR _a = DimProject[Agency]
+        VAR _ak = SUBSTITUTE ( SUBSTITUTE ( SUBSTITUTE ( _a, " ", "" ), "&", "" ), "'", "" )
+        VAR _logo = CALCULATE ( MAX ( DimProject[SharePointLogoURL] ), REMOVEFILTERS (), DimProject[Agency] = _a )
+        VAR _h = SWITCH ( _a, "IOM", "2.6rem", "INTERPOL", "4.4rem", "UNOCT", "2.6rem", "UNODC", "3.2rem", "CSSM", "3.2rem", "3.2rem" )
+        RETURN
+            IF (
+                NOT ISBLANK ( _logo ) && _logo <> "",
+                "<img class='lgo' id='lg-" & _ak & "' alt='" & _a & "' src='" & _logo & "' style='height:" & _h & "'>"
+            ),
+        ""
+    )
+
+-- ONE card per project: the list row plus its hidden detail panel. No logo here
+-- (the script inserts the agency logo of whichever list the project was opened from).
+VAR _projs =
+    SUMMARIZECOLUMNS (
+        DimProject[Project Code],
+        DimProject[Project Title],
+        DimProject[Project Status],
+        DimProject[Project Start Date],
+        DimProject[Project End Date],
+        "@m", [# Projects]
+    )
+
+VAR _projCards =
+    CONCATENATEX (
+        _projs,
+        VAR _code = DimProject[Project Code]
+        VAR _id = SUBSTITUTE ( SUBSTITUTE ( _code, " ", "_" ), "'", "_" )
+        VAR _st = DimProject[Project Status]
+        VAR _sc = SWITCH ( TRUE (), CONTAINSSTRING ( _st, "Active" ), "a", CONTAINSSTRING ( _st, "End" ), "e", CONTAINSSTRING ( _st, "Plan" ), "p", "x" )
+        VAR _sd = IF ( ISBLANK ( DimProject[Project Start Date] ), "TBC", FORMAT ( DimProject[Project Start Date], "MMM D, YYYY" ) )
+        VAR _ed = IF ( ISBLANK ( DimProject[Project End Date] ), "TBC", FORMAT ( DimProject[Project End Date], "MMM D, YYYY" ) )
+        VAR _tit = SUBSTITUTE ( SUBSTITUTE ( DimProject[Project Title], "&", "&amp;" ), "<", "&lt;" )
+        VAR _ag = CALCULATE ( SELECTEDVALUE ( DimProject[Agency] ), REMOVEFILTERS (), DimProject[Project Code] = _code )
+        VAR _agk = SUBSTITUTE ( SUBSTITUTE ( SUBSTITUTE ( _ag, " ", "" ), "&", "" ), "'", "" )
+        VAR _donRaw = CALCULATE ( SELECTEDVALUE ( FactProjects[Original Donor] ), REMOVEFILTERS (), DimProject[Project Code] = _code )
+        VAR _ctyRaw = CALCULATE ( SELECTEDVALUE ( FactProjects[Benefiting Countries List] ), REMOVEFILTERS (), DimProject[Project Code] = _code )
+        VAR _don = SUBSTITUTE ( SUBSTITUTE ( _donRaw, "&", "&amp;" ), "<", "&lt;" )
+        VAR _cty = SUBSTITUTE ( SUBSTITUTE ( _ctyRaw, "&", "&amp;" ), "<", "&lt;" )
+        RETURN
+            "<div id='p-" & _id & "'>"
+                & "<div class='lg' data-r='1' data-ag='" & _agk & "'>"
+                & "<span class='lcode'>" & _code & "</span>"
+                & "<span class='ltit'>" & _tit & "</span>"
+                & "<span class='lst'><i class='st st-" & _sc & "'>" & _st & "</i></span>"
+                & "<span class='ldt'>" & _sd & " &ndash; " & _ed & "</span>"
+                & "<div class='dtl'>"
+                & "<div class='dt-top'></div>"
+                & "<div class='dt-code'><span>" & _code & "</span><i class='st st-" & _sc & "'>" & _st & "</i></div>"
+                & "<div class='dt-tt'>" & _tit & "</div>"
+                & "<div class='dt-dates'><span><b>Start:</b> " & _sd & "</span><span><b>End:</b> " & _ed & "</span></div>"
+                & "<div class='dt-l'>Donor</div><div class='dt-v'>" & _don & "</div>"
+                & "<div class='dt-l'>Benefiting countries</div><div class='dt-v'>" & _cty & "</div>"
+                & "</div></div></div>",
+        ""
+    )
+
+-- One block per pill: its header, plus the project codes it should show (ids only).
+VAR _pl =
+    SUMMARIZECOLUMNS (
+        BridgeProjectCountry[Country],
+        DimProject[Macro Thematic Focus],
+        DimProject[Agency],
+        DimProject[Project Code],
+        DimProject[Project Start Date],
+        "@m", [# Projects]
+    )
+
+VAR _lists =
+    CONCATENATEX (
+        _agCells,
+        VAR _c = BridgeProjectCountry[Country]
+        VAR _t = DimProject[Macro Thematic Focus]
+        VAR _a = DimProject[Agency]
+        VAR _ak = SUBSTITUTE ( SUBSTITUTE ( SUBSTITUTE ( _a, " ", "" ), "&", "" ), "'", "" )
+        VAR _cs = SUBSTITUTE ( SUBSTITUTE ( SUBSTITUTE ( SUBSTITUTE ( _c, " ", "" ), "'", "" ), "’", "" ), "ô", "o" )
+        VAR _tk = MAXX ( FILTER ( _themeTot, DimProject[Macro Thematic Focus] = _t ), [@k] )
+        VAR _g = FILTER ( _pl, BridgeProjectCountry[Country] = _c && DimProject[Macro Thematic Focus] = _t && DimProject[Agency] = _a )
+        VAR _n = COUNTROWS ( _g )
+        VAR _codes =
+            CONCATENATEX (
+                _g,
+                SUBSTITUTE ( SUBSTITUTE ( DimProject[Project Code], " ", "_" ), "'", "_" ),
+                " ",
+                DimProject[Project Start Date], DESC,
+                DimProject[Project Code], ASC
+            )
+        RETURN
+            "<div class='plsrc' id='pl-" & _cs & "-" & _tk & "-" & _ak & "' data-a='" & _ak & "' data-c='" & _codes & "'>"
+                & "<div class='lh'><div class='lt'><span class='l1'>" & _a & " &middot; " & _c & "</span>"
+                & "<span class='l2'>" & SUBSTITUTE ( _t, "&", "&amp;" ) & " &middot; " & _n & IF ( _n = 1, " project", " projects" ) & "</span>"
+                & "<span class='l3'>Click a project for its details</span></div><span class='lslot'></span></div>"
+                & "<div class='lg lgh'><span>Project ID</span><span>Title</span><span>Status</span><span>Dates</span></div>"
+                & "</div>",
+        ""
+    )
+
+VAR _css =
+    "<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+html{font-size:clamp(11px,min(1.186vw,1.5625vh),26px)}
+html,body{margin:0;padding:0;height:100%;overflow:hidden}
+.wwp{font-family:'Inter',Segoe UI,Arial,sans-serif;background:#fff;border:1px solid #E4E2DB;border-radius:1rem;overflow:hidden;height:calc(100vh - 8px);box-sizing:border-box;display:flex;flex-direction:column}
+.wwp-hd{flex:none;padding:1.143rem 1.714rem;border-bottom:1px solid #E4E2DB;display:flex;align-items:center;gap:0.714rem;background:#fff}
+.wwp-hd .d{width:0.643rem;height:0.643rem;border-radius:50%;background:#fede59}
+.wwp-hd b{font-size:1.214rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#000}
+.wwp-bd{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;padding:1rem 1rem 0.714rem;background:#fff}
+.wwp-sc{flex:1 1 auto;min-height:0;overflow:auto;border:1px solid #E4E2DB;border-radius:0.714rem;display:flex;flex-direction:column}
+.g{display:grid;min-width:0;flex:1 0 auto}
+.rw{display:contents}
+.flag{display:inline-block;overflow:hidden;width:2.357rem;height:1.571rem;border-radius:0.214rem;box-shadow:0 0 0 1px rgba(0,0,0,.1);flex:none}
+.flag svg{display:block;width:100%;height:100%}
+.cty{font-size:1rem;line-height:1.2;font-weight:600;color:#000}
+.cnt{display:inline-flex;align-items:center;justify-content:center;min-width:1.857rem;height:1.857rem;padding:0 0.571rem;border-radius:71.357rem;background:#FFF1B8;color:#2a1c08;font-size:0.929rem;font-weight:700;font-variant-numeric:tabular-nums;box-sizing:border-box}
+.bdg{width:3rem;height:3rem;border-radius:0.857rem;background:#FFF6CC;color:#2a1c08;display:flex;align-items:center;justify-content:center;flex:none;transition:background .15s}
+.bdg svg{display:block;width:1.857rem;height:1.857rem}
+.c-corner,.c-ch,.c-th,.c-cell{border-bottom:1px solid #EEEBE3;border-right:1px solid #EEEBE3;box-sizing:border-box;transition:background .12s}
+.c-corner{position:sticky;top:0;z-index:3;background:#FAF9F5;border-bottom:1px solid #E4E2DB;border-right:1px solid #E4E2DB;padding:0.857rem 1.143rem;display:flex;flex-direction:column;justify-content:space-between;gap:0.857rem}
+.c-ch{position:sticky;top:0;z-index:2;background:#fff;border-bottom:1px solid #E4E2DB;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:0.5rem;padding:0.857rem 0.429rem;text-align:center}
+.c-ch .cty{min-height:2.4em;display:flex;align-items:center;justify-content:center}
+.c-th{background:#FAF9F5;border-right:1px solid #E4E2DB;border-left:0.286rem solid var(--c);padding:1rem 1.143rem;display:flex;flex-direction:column;justify-content:center;gap:0.714rem}
+.c-th:hover .bdg{background:#fede59}
+.c-th .top{display:flex;gap:0.857rem;align-items:flex-start}
+.c-th .nm{font-size:1rem;font-weight:700;line-height:1.3;color:#000}
+.c-th .num{display:flex;align-items:baseline;gap:0.643rem}
+.c-th .big{font-size:2.286rem;font-weight:600;line-height:1;color:#000;font-variant-numeric:tabular-nums}
+.c-th .cap{font-size:0.929rem;color:#4A4740;font-weight:500}
+.c-th .share{height:0.286rem;border-radius:2px;background:#E4E2DB;overflow:hidden}
+.c-th .share i{display:block;height:100%;background:var(--c);border-radius:2px}
+.c-cell{background:#fff;padding:0.714rem 0.571rem;display:flex;flex-direction:column;gap:0.357rem;align-items:flex-start;justify-content:center;min-height:7rem}
+.lab{font-size:0.821rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#6F6B63}
+.hint{display:block;margin-top:0.357rem;font-size:0.821rem;line-height:1.3;color:#6F6B63;font-weight:500}
+.kbs{display:grid;gap:0.5rem}
+.kb{border:0;padding:0;cursor:pointer;font:inherit;width:100%;height:auto;aspect-ratio:1/1;max-height:3.2rem;border-radius:0.7rem}
+.kb svg{width:1.7rem;height:1.7rem}
+.kb:hover,.kb:focus-visible{background:#fede59;outline:none}
+.kb.off{color:#A8A59C;filter:grayscale(1);opacity:.6}
+.ov{display:none;position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(20,18,10,.38);z-index:50}
+.ov.on{display:block}
+.pop{display:none;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(36rem,88%);max-height:86%;overflow:auto;box-sizing:border-box;background:#fff;border-radius:1rem;border-top:0.286rem solid var(--c,#fede59);box-shadow:0 1.5rem 4rem rgba(20,18,10,.3);padding:1.6rem 1.8rem 1.8rem;z-index:51}
+.pop.on{display:block}
+.pop .ph{display:flex;align-items:center;gap:0.857rem;margin-bottom:1rem;padding-right:2.5rem}
+.pop .pt{font-size:1.214rem;font-weight:700;line-height:1.3;color:#000}
+.pop .pd{margin:0;font-size:1rem;line-height:1.65;color:#2B2B2B}
+.pop .px{position:absolute;right:0.857rem;top:0.857rem;width:2rem;height:2rem;border:0;border-radius:50%;background:#F1EFE8;color:#2a1c08;font-size:1.3rem;line-height:1;cursor:pointer;z-index:2}
+.pop .px:hover{background:#fede59}
+.pill[data-p]{cursor:pointer}
+.plsrc,.lgsrc{display:none}
+.lpop{width:min(56rem,92%)}
+.lh{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1rem;padding-right:2.5rem}
+.lt{display:flex;flex-direction:column;gap:0.286rem;min-width:0}
+.lh .l1{font-size:1.214rem;font-weight:700;color:#000}
+.lh .l2{font-size:0.929rem;color:#6F6B63;font-weight:500}
+.lh .l3{font-size:0.821rem;color:#6F6B63}
+.lslot{flex:none;display:flex;align-items:center}
+.lgo{object-fit:contain;max-width:12rem;flex:none}
+.lg{display:grid;grid-template-columns:11rem minmax(0,1fr) 6rem 12rem;gap:0.857rem;align-items:center;padding:0.643rem 0.571rem;border-bottom:1px solid #EEEBE3;font-size:0.929rem;color:#2B2B2B}
+.lg>span{min-width:0}
+.lg[data-r]{cursor:pointer;transition:background .12s}
+.lg[data-r]:hover{background:#FFF8DC}
+.lgh{font-size:0.75rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#6F6B63;border-bottom:1px solid #D9D6CC;padding-top:0}
+.lcode{font-weight:600;white-space:normal;overflow-wrap:anywhere;font-size:0.857rem}
+.ltit{line-height:1.35}
+.ldt{color:#4A4740;white-space:nowrap}
+.dtl{display:none}
+.bk{display:none;align-items:center;gap:0.4rem;border:0;background:#F1EFE8;color:#2a1c08;border-radius:71.357rem;padding:0.4rem 0.9rem;font:inherit;font-size:0.857rem;font-weight:600;cursor:pointer;margin-bottom:0.9rem}
+.bk.on{display:inline-flex}
+.bk:hover{background:#fede59}
+.dt-top{display:flex;justify-content:center;border-bottom:1px solid #E0E0E0;padding-bottom:0.8rem;margin-bottom:1rem;min-height:1rem}
+.dt-top .lgo{height:auto!important;max-height:4.5rem;max-width:14rem}
+.dt-code{display:flex;align-items:center;gap:0.6rem;font-size:0.929rem;font-weight:700;margin-bottom:0.8rem;color:#333}
+.dt-tt{border-left:0.286rem solid #CEB44A;padding:0.357rem 0 0.357rem 0.75rem;margin-bottom:1rem;font-size:1.1rem;font-weight:600;line-height:1.35;color:#333}
+.dt-dates{display:flex;justify-content:space-between;background:#F8F8F8;padding:0.6rem 0.75rem;border-radius:0.3rem;margin-bottom:1rem;font-size:0.9rem;color:#333}
+.dt-dates b{color:#666;margin-right:0.3rem}
+.dt-l{font-size:0.75rem;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:0.2rem}
+.dt-v{font-size:1rem;color:#333;margin-bottom:1rem;line-height:1.45}
+.st{font-style:normal;display:inline-block;padding:0.214rem 0.643rem;border-radius:71.357rem;font-size:0.821rem;font-weight:600}
+.st-a{background:#FFF1B8;color:#6B5410}
+.st-e{background:#FDE3DC;color:#B3261E}
+.st-p{background:#E8EEF7;color:#3B4F73}
+.st-x{background:#F1EFE8;color:#4A4740}
+.pill{display:inline-flex;align-items:center;gap:0.357rem;height:1.857rem;padding:0 0.571rem;border-radius:71.357rem;border:1.3px solid #D9D2BE;background:#fff;font-size:0.857rem;font-weight:600;color:#2B2B2B;white-space:nowrap;max-width:100%;box-sizing:border-box;cursor:default;transition:background .12s,border-color .12s}
+.pill:hover{background:#fede59;border-color:#fede59;color:#2a1c08}
+.pill b{font-weight:700}
+.xp{display:none}
+.c-cell.xo .xp{display:inline-flex}
+.more{display:inline-flex;align-items:center;height:1.857rem;padding:0 0.571rem;border-radius:71.357rem;background:#F7F5EE;color:#6F6B63;font-size:0.857rem;font-weight:700;white-space:nowrap;transition:background .12s,color .12s}
+.mx{border:0;font-family:inherit;font-size:0.857rem;font-weight:700;cursor:pointer}
+.mx:hover,.mx:focus-visible{background:#fede59;color:#2a1c08;outline:none}
+.mp,.mm{font-style:normal}
+.mm{display:none}
+.c-cell.xo .mp{display:none}
+.c-cell.xo .mm{display:inline}
+.empty{display:inline-flex;align-items:center;height:1.857rem;padding:0 0.643rem;border-radius:71.357rem;border:1.3px dashed #E9A8A3;background:#FDECEA;color:#B3261E;font-size:0.857rem;font-weight:600;white-space:nowrap}
+.dash{color:#C9C2AE;font-size:1rem;font-weight:600}
+.nor{font-size:0.857rem;color:#6F6B63}
+.rw:not(.offrw):hover>div:not(.off){background:#FFF8DC!important}
+.g .off{background:#F5F5F3!important}
+.c-ch.off .flag,.c-ch.off .cty{filter:grayscale(1);opacity:.4}
+.c-th.off{opacity:.55;filter:grayscale(1)}
+.wwp-foot{flex:none;font-size:0.964rem;color:#6F6B63;margin-top:0.857rem;padding:0 2px 0.286rem}
+"
+
+VAR _sumT = MAX ( 1, SUMX ( _themeTot, [@t] ) )
+
+-- Header row: corner (title + theme icons) + one cell per country
+VAR _header =
+    "<div class='rw offrw'><div class='c-corner'>"
+        & "<div><span class='lab'>Macro Thematic Areas</span><span class='hint'>Click an icon for its definition</span></div>"
+        & "<div class='kbs' style='grid-template-columns:repeat(" & _nRows & ",1fr)'>"
+        & CONCATENATEX (
+            _themeTot,
+            IF ( [@icon] <> "", "<button type='button' class='bdg kb" & IF ( [@ton] = 0, " off" ) & "' data-k='" & [@k] & "' aria-label='" & [@nm] & ": show definition'>" & [@icon] & "</button>" ),
+            "",
+            [@ton], DESC,
+            [@t], DESC,
+            DimProject[Macro Thematic Focus], ASC
+        )
+        & "</div></div>"
+        & CONCATENATEX (
+            _rows,
+            VAR _c = BridgeProjectCountry[Country]
+            VAR _flagSvg =
+                SWITCH ( TRUE (),
+                    _c = "Benin",
+                        "<svg viewBox='0 0 30 20'><rect width='30' height='20' fill='#E8112D'/><rect width='30' height='10' fill='#FCD116'/><rect width='12' height='20' fill='#008751'/></svg>",
+                    _c = "Burkina Faso",
+                        "<svg viewBox='0 0 30 20'><rect width='30' height='20' fill='#009E49'/><rect width='30' height='10' fill='#EF2B2D'/><polygon points='15.00,6.00 15.94,8.71 18.80,8.76 16.52,10.49 17.35,13.24 15.00,11.60 12.65,13.24 13.48,10.49 11.20,8.76 14.06,8.71' fill='#FCD116'/></svg>",
+                    _c = "Côte d'Ivoire",
+                        "<svg viewBox='0 0 30 20'><rect width='10' height='20' fill='#F77F00'/><rect x='10' width='10' height='20' fill='#ffffff'/><rect x='20' width='10' height='20' fill='#009E60'/></svg>",
+                    _c = "Ghana",
+                        "<svg viewBox='0 0 30 20'><rect width='30' height='6.67' fill='#CE1126'/><rect y='6.67' width='30' height='6.67' fill='#FCD116'/><rect y='13.33' width='30' height='6.67' fill='#006B3F'/><polygon points='15.00,6.70 15.78,8.93 18.14,8.98 16.26,10.41 16.94,12.67 15.00,11.32 13.06,12.67 13.74,10.41 11.86,8.98 14.22,8.93' fill='#000000'/></svg>",
+                    _c = "Mali",
+                        "<svg viewBox='0 0 30 20'><rect width='10' height='20' fill='#14B53A'/><rect x='10' width='10' height='20' fill='#FCD116'/><rect x='20' width='10' height='20' fill='#CE1126'/></svg>",
+                    _c = "Niger",
+                        "<svg viewBox='0 0 30 20'><rect width='30' height='6.67' fill='#E05206'/><rect y='6.67' width='30' height='6.67' fill='#ffffff'/><rect y='13.33' width='30' height='6.67' fill='#0DB02B'/><circle cx='15' cy='10' r='2.2' fill='#E05206'/></svg>",
+                    _c = "Nigeria",
+                        "<svg viewBox='0 0 30 20'><rect width='10' height='20' fill='#008751'/><rect x='10' width='10' height='20' fill='#ffffff'/><rect x='20' width='10' height='20' fill='#008751'/></svg>",
+                    _c = "Senegal",
+                        "<svg viewBox='0 0 30 20'><rect width='10' height='20' fill='#00853F'/><rect x='10' width='10' height='20' fill='#FDEF42'/><rect x='20' width='10' height='20' fill='#E31B23'/><polygon points='15.00,6.60 15.80,8.90 18.23,8.95 16.29,10.42 17.00,12.75 15.00,11.36 13.00,12.75 13.71,10.42 11.77,8.95 14.20,8.90' fill='#00853F'/></svg>",
+                    _c = "Togo",
+                        "<svg viewBox='0 0 30 20'><rect width='30' height='20' fill='#006A4E'/><rect y='4' width='30' height='4' fill='#FFCE00'/><rect y='12' width='30' height='4' fill='#FFCE00'/><rect width='12' height='12' fill='#D21034'/><polygon points='6.00,2.60 6.80,4.90 9.23,4.95 7.29,6.42 8.00,8.75 6.00,7.36 4.00,8.75 4.71,6.42 2.77,4.95 5.20,4.90' fill='#ffffff'/></svg>",
+                    "<div style='width:30px;height:20px;background:#ECE8DF;border-radius:3px'></div>"
+                )
+            VAR _on = [@on] = 1
+            RETURN
+                "<div class='c-ch k" & [@s] & IF ( NOT _on, " off" ) & "' title='" & SUBSTITUTE ( _c, "'", "&#39;" ) & IF ( NOT _on, " (not in current selection)" ) & "'>"
+                    & "<span class='flag'>" & _flagSvg & "</span>"
+                    & "<span class='cty'>" & _c & "</span>"
+                    & IF ( _on, "<span class='cnt' title='" & [@tot] & " projects'>" & FORMAT ( [@tot], "0" ) & "</span>" )
+                    & "</div>",
+            "",
+            [@on], DESC,
+            [@tot], DESC,
+            BridgeProjectCountry[Country], ASC
+        )
+        & "</div>"
+
+-- Body: one row per theme, one cell per country (same country order as the header)
+VAR _body =
+    CONCATENATEX (
+        _themeTot,
+        VAR _t = DimProject[Macro Thematic Focus]
+        VAR _tOn = [@ton] = 1
+        VAR _tHex = [@hex]
+        VAR _tIcon = [@icon]
+        VAR _tNm = [@nm]
+        VAR _tK = [@k]
+        VAR _tTot = [@t]
+        VAR _share = IF ( _tOn, DIVIDE ( _tTot, _sumT ), 0 )
+        VAR _th =
+            "<div class='c-th" & IF ( NOT _tOn, " off" ) & "' style='--c:" & _tHex & "'>"
+                & "<div class='top'>" & IF ( _tIcon <> "", "<span class='bdg'>" & _tIcon & "</span>" ) & "<span class='nm'>" & _tNm & "</span></div>"
+                & "<div class='num'><span class='big'>" & IF ( _tOn, FORMAT ( _tTot, "0" ), "&ndash;" ) & "</span>"
+                & "<span class='cap'>" & IF ( _tOn, FORMAT ( _share, "0%" ) & " of projects", "not selected" ) & "</span></div>"
+                & "<div class='share'><i style='width:" & FORMAT ( _share * 100, "0" ) & "%'></i></div>"
+                & "</div>"
+        VAR _cellsHtml =
+            CONCATENATEX (
+                _rows,
+                VAR _c = BridgeProjectCountry[Country]
+                VAR _s = [@s]
+                VAR _on = [@on] = 1
+                VAR _n =
+                    COALESCE (
+                        MAXX ( FILTER ( _cells, BridgeProjectCountry[Country] = _c && DimProject[Macro Thematic Focus] = _t ), [@n] ),
+                        0
+                    )
+                VAR _seats =
+                    FILTER ( _agCells, BridgeProjectCountry[Country] = _c && DimProject[Macro Thematic Focus] = _t )
+                VAR _top3 = TOPN ( 3, _seats, [@a], DESC, DimProject[Agency], ASC )
+                VAR _top3Ag = SELECTCOLUMNS ( _top3, "@ag", DimProject[Agency] )
+                VAR _extra = FILTER ( _seats, NOT CONTAINSROW ( _top3Ag, DimProject[Agency] ) )
+                VAR _rest = COUNTROWS ( _extra )
+                VAR _pills =
+                    CONCATENATEX (
+                        _top3,
+                        "<span class='pill' data-p='pl-" & _s & "-" & _tK & "-" & SUBSTITUTE ( SUBSTITUTE ( SUBSTITUTE ( DimProject[Agency], " ", "" ), "&", "" ), "'", "" ) & "' title='" & DimProject[Agency] & ": " & [@a] & " project" & IF ( [@a] > 1, "s" ) & " (click for the list)'>"
+                            & DimProject[Agency] & "<b>" & [@a] & "</b></span>",
+                        "",
+                        [@a], DESC, DimProject[Agency], ASC
+                    )
+                        & CONCATENATEX (
+                            _extra,
+                            "<span class='pill xp' data-p='pl-" & _s & "-" & _tK & "-" & SUBSTITUTE ( SUBSTITUTE ( SUBSTITUTE ( DimProject[Agency], " ", "" ), "&", "" ), "'", "" ) & "' title='" & DimProject[Agency] & ": " & [@a] & " project" & IF ( [@a] > 1, "s" ) & " (click for the list)'>"
+                                & DimProject[Agency] & "<b>" & [@a] & "</b></span>",
+                            "",
+                            [@a], DESC, DimProject[Agency], ASC
+                        )
+                        & IF ( COALESCE ( _rest, 0 ) > 0, "<button type='button' class='more mx' title='Show the other agencies'><i class='mp'>+" & _rest & "</i><i class='mm'>&minus; fewer</i></button>" )
+                VAR _off = NOT _on || NOT _tOn
+                VAR _content =
+                    IF (
+                        _off,
+                        "<span class='dash'>&ndash;</span>",
+                        IF (
+                            _n = 0,
+                            "<span class='empty' title='No project recorded'>no project</span>",
+                            IF ( ISEMPTY ( _seats ), "<span class='nor'>agency not recorded</span>", _pills )
+                        )
+                    )
+                RETURN
+                    "<div class='c-cell k" & _s & IF ( _off, " off" ) & "'>" & _content & "</div>",
+                "",
+                [@on], DESC,
+                [@tot], DESC,
+                BridgeProjectCountry[Country], ASC
+            )
+        RETURN
+            "<div class='rw" & IF ( NOT _tOn, " offrw" ) & "'>" & _th & _cellsHtml & "</div>",
+        "",
+        [@ton], DESC,
+        [@t], DESC,
+        DimProject[Macro Thematic Focus], ASC
+    )
+
+-- Definition popups, one per theme
+VAR _pops =
+    CONCATENATEX (
+        _themeTot,
+        "<div class='pop' id='pop-" & [@k] & "' style='--c:" & [@hex] & "' role='dialog' aria-label='" & [@nm] & "'>"
+            & "<button type='button' class='px' aria-label='Close'>&times;</button>"
+            & "<div class='ph'>" & IF ( [@icon] <> "", "<span class='bdg'>" & [@icon] & "</span>" ) & "<span class='pt'>" & [@nm] & "</span></div>"
+            & "<p class='pd'>" & [@def] & "</p></div>",
+        ""
+    )
+
+VAR _js =
+    "<script>
+(function(){
+  var ov=document.getElementById('ov');
+  var bk=document.getElementById('bk');
+  var lp=document.getElementById('lp');
+  var lpb=document.getElementById('lpb');
+  var listHTML='';
+  var cellLogo='';
+  function logoOf(k){
+    var e=k?document.getElementById('lg-'+k):null;
+    return e?e.outerHTML:'';
+  }
+  function put(sel,html){
+    var s=lpb.querySelector(sel);
+    if(s)s.innerHTML=html;
+  }
+  function showList(){
+    lpb.innerHTML=listHTML;
+    put('.lslot',cellLogo);
+    lp.scrollTop=0;
+  }
+  function closeAll(){
+    ov.classList.remove('on');
+    bk.classList.remove('on');
+    document.querySelectorAll('.pop').forEach(function(p){p.classList.remove('on');});
+  }
+  document.querySelectorAll('.kb').forEach(function(b){
+    b.addEventListener('click',function(e){
+      e.stopPropagation();
+      var p=document.getElementById('pop-'+b.getAttribute('data-k'));
+      if(!p)return;
+      var was=p.classList.contains('on');
+      closeAll();
+      if(!was){p.classList.add('on');ov.classList.add('on');}
+    });
+  });
+  document.querySelectorAll('.mx').forEach(function(b){
+    b.addEventListener('click',function(e){
+      e.stopPropagation();
+      var c=b.closest('.c-cell');
+      if(c)c.classList.toggle('xo');
+    });
+  });
+  document.querySelectorAll('.px').forEach(function(b){
+    b.addEventListener('click',function(e){e.stopPropagation();closeAll();});
+  });
+  document.querySelectorAll('[data-p]').forEach(function(b){
+    b.addEventListener('click',function(e){
+      e.stopPropagation();
+      var src=document.getElementById(b.getAttribute('data-p'));
+      if(!src)return;
+      cellLogo=logoOf(src.getAttribute('data-a'));
+      var h=src.innerHTML;
+      var cs=src.getAttribute('data-c')||'';
+      cs.split(' ').forEach(function(c){
+        if(!c)return;
+        var p=document.getElementById('p-'+c);
+        if(p)h+=p.innerHTML;
+      });
+      listHTML=h;
+      closeAll();
+      showList();
+      lp.classList.add('on');
+      ov.classList.add('on');
+    });
+  });
+  lpb.addEventListener('click',function(e){
+    var row=e.target.closest('.lg[data-r]');
+    if(!row)return;
+    var d=row.querySelector('.dtl');
+    if(!d)return;
+    lpb.innerHTML=d.innerHTML;
+    put('.dt-top',logoOf(row.getAttribute('data-ag')));
+    bk.classList.add('on');
+    lp.scrollTop=0;
+  });
+  bk.addEventListener('click',function(e){
+    e.stopPropagation();
+    showList();
+    bk.classList.remove('on');
+  });
+  ov.addEventListener('click',closeAll);
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')closeAll();});
+})();
+</script>"
+
+VAR _footer =
+    "<div class='wwp-foot'>Top 3 agencies per cell; click +N to show the rest. " & _statusTxt & "."
+        & IF ( _anyOff, " Greyed countries and themes are outside the current selection." )
+        & "</div>"
+
+RETURN
+    _css
+        & _hoverCss
+        & "</style>"
+        & "<div class='wwp'>"
+        & "<div class='wwp-hd'><span class='d'></span><b>Who works where</b></div>"
+        & "<div class='wwp-bd'>"
+        & "<div class='wwp-sc'><div class='g' style='grid-template-columns:minmax(16rem,24%) repeat(" & _nCols & ",minmax(0,1fr));grid-template-rows:auto repeat(" & _nRows & ",minmax(7rem,1fr))'>"
+        & _header
+        & _body
+        & "</div></div>"
+        & _footer
+        & "<div class='ov' id='ov'></div>"
+        & _pops
+        & "<div class='pop lpop' id='lp' role='dialog' aria-label='Projects'><button type='button' class='px' aria-label='Close'>&times;</button><button type='button' class='bk' id='bk'>&larr; Back to list</button><div id='lpb'></div></div>"
+        & "<div class='lgsrc'>" & _logos & "</div>"
+        & "<div class='plsrc'>" & _lists & _projCards & "</div>"
+        & "</div></div>"
+        & _js
