@@ -1,0 +1,231 @@
+Who Works Where Pills HTML v.5 = 
+VAR _selected =
+    FILTER ( VALUES ( BridgeProjectCountry[Country] ), NOT ISBLANK ( BridgeProjectCountry[Country] ) )
+VAR _countries =
+    FILTER ( ALL ( BridgeProjectCountry[Country] ), NOT ISBLANK ( BridgeProjectCountry[Country] ) )
+VAR _selThemes =
+    FILTER ( VALUES ( DimProject[Macro Thematic Focus] ), NOT ISBLANK ( DimProject[Macro Thematic Focus] ) )
+VAR _themes =
+    FILTER ( ALL ( DimProject[Macro Thematic Focus] ), NOT ISBLANK ( DimProject[Macro Thematic Focus] ) )
+VAR _anyOff =
+    COUNTROWS ( _countries ) > COUNTROWS ( _selected )
+        || COUNTROWS ( _themes ) > COUNTROWS ( _selThemes )
+VAR _agencies =
+    FILTER ( VALUES ( DimProject[Agency] ), NOT ISBLANK ( DimProject[Agency] ) )
+
+VAR _cells =
+    ADDCOLUMNS ( CROSSJOIN ( _selected, _selThemes ), "@n", COALESCE ( [# Projects], 0 ) )
+
+VAR _agCells =
+    FILTER (
+        ADDCOLUMNS ( CROSSJOIN ( _selected, _selThemes, _agencies ), "@a", COALESCE ( [# Projects], 0 ) ),
+        [@a] > 0
+    )
+
+VAR _themeTot =
+    ADDCOLUMNS (
+        _themes,
+        "@ton", IF ( CONTAINSROW ( _selThemes, DimProject[Macro Thematic Focus] ), 1, 0 ),
+        "@t", IF ( CONTAINSROW ( _selThemes, DimProject[Macro Thematic Focus] ), COALESCE ( [# Projects], 0 ), 0 ),
+        "@short",
+            VAR _t = DimProject[Macro Thematic Focus]
+            RETURN
+                COALESCE (
+                    CALCULATE ( MAX ( DimProject[Macro Thematic Focus - Short] ), REMOVEFILTERS (), DimProject[Macro Thematic Focus] = _t ),
+                    _t
+                ),
+        "@hex",
+            VAR _t = DimProject[Macro Thematic Focus]
+            RETURN
+                SWITCH ( TRUE (),
+                    CONTAINSSTRING ( _t, "Border Governance" ), "#4A3810",
+                    CONTAINSSTRING ( _t, "Law Enforcement" ), "#8C6D1E",
+                    CONTAINSSTRING ( _t, "Community" ), "#C9A227",
+                    CONTAINSSTRING ( _t, "Cross-Border" ), "#F5D061",
+                    "#8C6D1E"
+                ),
+        "@icon",
+            VAR _t = DimProject[Macro Thematic Focus]
+            VAR _o = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'>"
+            RETURN
+                SWITCH ( TRUE (),
+                    CONTAINSSTRING ( _t, "Border Governance" ),
+                        _o & "<path d='M3 21l18 0'/><path d='M4 21v-15a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v15'/><path d='M9 21v-8a3 3 0 0 1 6 0v8'/></svg>",
+                    CONTAINSSTRING ( _t, "Law Enforcement" ),
+                        _o & "<path d='M18.9 7a8 8 0 0 1 1.1 5v1a6 6 0 0 0 .8 3'/><path d='M8 11a4 4 0 0 1 8 0v1a10 10 0 0 0 2 6'/><path d='M12 11v2a14 14 0 0 0 2.5 8'/><path d='M8 15a18 18 0 0 0 1.8 6'/><path d='M4.9 19a22 22 0 0 1 -.9 -7v-1a8 8 0 0 1 12 -6.95'/></svg>",
+                    CONTAINSSTRING ( _t, "Community" ),
+                        _o & "<path d='M10 13a2 2 0 1 0 4 0a2 2 0 0 0 -4 0'/><path d='M8 21v-1a2 2 0 0 1 2 -2h4a2 2 0 0 1 2 2v1'/><path d='M15 5a2 2 0 1 0 4 0a2 2 0 0 0 -4 0'/><path d='M17 10h2a2 2 0 0 1 2 2v1'/><path d='M5 5a2 2 0 1 0 4 0a2 2 0 0 0 -4 0'/><path d='M3 13v-1a2 2 0 0 1 2 -2h2'/></svg>",
+                    CONTAINSSTRING ( _t, "Cross-Border" ),
+                        _o & "<path d='M7 10h14l-4 -4'/><path d='M17 14h-14l4 4'/></svg>",
+                    ""
+                )
+    )
+
+VAR _rows =
+    ADDCOLUMNS (
+        _countries,
+        "@on", IF ( CONTAINSROW ( _selected, BridgeProjectCountry[Country] ), 1, 0 ),
+        "@tot", IF ( CONTAINSROW ( _selected, BridgeProjectCountry[Country] ), COALESCE ( [# Projects], 0 ), 0 )
+    )
+
+VAR _css =
+    "<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Newsreader:wght@600;700&display=swap');
+html,body{margin:0;padding:0;height:100%;overflow:hidden}
+.wwp{font-family:'Inter',Segoe UI,Arial,sans-serif;background:#ffffff;border:1px solid #E4E2DB;border-radius:14px;box-shadow:0 1px 2px rgba(20,18,10,.04);overflow:hidden;height:calc(100vh - 8px);box-sizing:border-box;display:flex;flex-direction:column}
+.wwp-hd{flex:none;padding:16px 24px;border-bottom:1px solid #E4E2DB;display:flex;align-items:center;gap:10px;background:#fff}
+.wwp-hd .d{width:9px;height:9px;border-radius:50%;background:#fede59}
+.wwp-hd b{font-size:17px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#000000}
+.wwp-bd{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;padding:14px 8px 14px;background:#ffffff}
+.wwp-sc{flex:1 1 auto;min-height:0;overflow-x:hidden;overflow-y:auto;padding-bottom:12px}
+.wwp-tbl{border-collapse:separate;border-spacing:12px 0;width:100%;table-layout:fixed}
+.wwp-tbl thead th{position:sticky;top:0;z-index:2;padding:0;vertical-align:bottom;text-align:left;font-weight:400}
+.wwp-tbl th.wwp-c{background:#ffffff;font-size:12.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#6F6B63;padding:0 8px 16px 12px}
+.wwp-tbl th.wwp-ph{background:#ffffff;border:1px solid #E4E2DB;border-bottom:0;border-radius:14px 14px 0 0;box-shadow:-4px 0 8px -5px rgba(20,18,10,.14),4px 0 8px -5px rgba(20,18,10,.14)}
+.wwp-ht{border-top:4px solid var(--c);border-radius:13px 13px 0 0;padding:14px 18px 12px;background:#fff}
+.wwp-r1{display:flex;align-items:center;gap:12px}
+.wwp-bdg{width:44px;height:44px;border-radius:12px;background:#FFF6CC;color:#2a1c08;display:flex;align-items:center;justify-content:center;flex:none;transition:background .15s}
+.wwp-bdg svg{display:block;width:27px;height:27px}
+.wwp-tbl th:hover .wwp-bdg{background:#fede59}
+.wwp-lab{font-size:13px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#000000;line-height:1.25}
+.wwp-big{font-size:44px;font-weight:600;line-height:1;margin:14px 0 12px;color:#000000;font-variant-numeric:tabular-nums}
+.wwp-cap{border-top:1px solid #EEEBE3;padding-top:10px;font-size:13.5px;color:#4A4740;display:flex;align-items:center;gap:8px;font-weight:500}
+.wwp-cap i{width:8px;height:8px;border-radius:50%;background:var(--c);display:inline-block}
+.wwp-tbl td.wwp-pc{background:#ffffff;border-left:1px solid #E4E2DB;border-right:1px solid #E4E2DB;border-top:1px solid #EEEBE3;padding:8px 14px;height:62px;vertical-align:middle;transition:background .15s;box-shadow:-4px 0 8px -5px rgba(20,18,10,.14),4px 0 8px -5px rgba(20,18,10,.14)}
+.wwp-tbl tbody tr:first-child td.wwp-pc{border-top:0}
+.wwp-tbl tbody tr:last-child td.wwp-pc{border-bottom:1px solid #E4E2DB;border-radius:0 0 14px 14px;box-shadow:-4px 0 8px -5px rgba(20,18,10,.14),4px 0 8px -5px rgba(20,18,10,.14),0 5px 8px -5px rgba(20,18,10,.14)}
+.wwp-tbl tbody tr:hover td.wwp-pc{background:#FFF8DC}
+.wwp-tbl td.wwp-cc{padding:8px 8px 8px 12px;height:62px;vertical-align:middle;white-space:nowrap}
+.wwp-tbl tbody tr:hover td.wwp-cc{box-shadow:inset 3px 0 0 #fede59}
+.wwp-row1{display:flex;align-items:center;gap:5px 6px;flex-wrap:wrap;row-gap:6px}
+.wwp-flag{display:inline-block;overflow:hidden;width:33px;height:22px;border-radius:3px;box-shadow:0 0 0 1px rgba(0,0,0,.1);vertical-align:-5px;margin-right:12px}
+.wwp-flag svg{display:block;width:100%;height:100%}
+.wwp-cty{font-size:17.5px;font-weight:600;color:#000000;white-space:nowrap}
+.wwp-cnt{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;padding:0 8px;margin-left:12px;border-radius:999px;background:#FFF1B8;color:#2a1c08;font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;vertical-align:1px;box-sizing:border-box}
+.wwp-pill{display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 11px;border-radius:999px;border:1.3px solid #D9D2BE;background:#fff;font-size:14.5px;font-weight:600;color:#2B2B2B;white-space:nowrap;cursor:default;transition:background .15s,border-color .15s,color .15s}
+.wwp-pill:hover{background:#fede59;border-color:#fede59;color:#2a1c08}
+.wwp-pill b{font-weight:700}
+.wwp-more{display:inline-flex;align-items:center;height:30px;padding:0 10px;border-radius:999px;background:#F7F5EE;color:#6F6B63;font-size:14px;font-weight:700;white-space:nowrap}
+.wwp-empty{display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 12px;border-radius:999px;border:1.3px dashed #E9A8A3;background:#FDECEA;color:#B3261E;font-size:14.5px;font-weight:600;white-space:nowrap}
+.wwp-dash{color:#D9D2BE;font-size:14px;font-weight:600}
+.wwp-offrow .wwp-cty{color:#C2BBA9}
+.wwp-offrow .wwp-flag{filter:grayscale(1);opacity:.35}
+.wwp-tbl tbody tr.wwp-offrow:hover td.wwp-pc{background:#ffffff}
+.wwp-tbl tbody tr.wwp-offrow:hover td.wwp-cc{box-shadow:none}
+.wwp-tbl th.wwp-off .wwp-ht{filter:grayscale(1);opacity:.45}
+.wwp-tbl td.wwp-offc,.wwp-tbl tbody tr:hover td.wwp-offc{background:#F4F2EC}
+.wwp-foot{flex:none;font-size:14px;color:#6F6B63;margin-top:12px;padding:0 12px}
+</style>"
+
+VAR _sumT = MAX ( 1, SUMX ( _themeTot, [@t] ) )
+
+VAR _header =
+    "<tr><th class='wwp-c'>Country</th>"
+        & CONCATENATEX (
+            _themeTot,
+            "<th class='wwp-ph" & IF ( [@ton] = 0, " wwp-off" ) & "' title='" & DimProject[Macro Thematic Focus] & IF ( [@ton] = 0, " (not in current selection)" ) & "'>"
+                & "<div class='wwp-ht' style='--c:" & [@hex] & "'>"
+                & "<div class='wwp-r1'>"
+                & IF ( [@icon] <> "", "<span class='wwp-bdg'>" & [@icon] & "</span>" )
+                & "<span class='wwp-lab'>" & [@short] & "</span></div>"
+                & "<div class='wwp-big'>" & IF ( [@ton] = 1, FORMAT ( [@t], "0" ), "&ndash;" ) & "</div>"
+                & "<div class='wwp-cap'><i></i>" & IF ( [@ton] = 1, FORMAT ( DIVIDE ( [@t], _sumT ), "0%" ) & " of projects", "not selected" ) & "</div>"
+                & "</div></th>",
+            "",
+            [@ton], DESC, [@t], DESC, DimProject[Macro Thematic Focus], ASC
+        )
+        & "</tr>"
+
+VAR _body =
+    CONCATENATEX (
+        _rows,
+        VAR _c = BridgeProjectCountry[Country]
+        VAR _flagSvg =
+            SWITCH ( TRUE (),
+                _c = "Benin",
+                    "<svg viewBox='0 0 30 20'><rect width='30' height='20' fill='#E8112D'/><rect width='30' height='10' fill='#FCD116'/><rect width='12' height='20' fill='#008751'/></svg>",
+                _c = "Burkina Faso",
+                    "<svg viewBox='0 0 30 20'><rect width='30' height='20' fill='#009E49'/><rect width='30' height='10' fill='#EF2B2D'/><polygon points='15.00,6.00 15.94,8.71 18.80,8.76 16.52,10.49 17.35,13.24 15.00,11.60 12.65,13.24 13.48,10.49 11.20,8.76 14.06,8.71' fill='#FCD116'/></svg>",
+                _c = "Côte d'Ivoire",
+                    "<svg viewBox='0 0 30 20'><rect width='10' height='20' fill='#F77F00'/><rect x='10' width='10' height='20' fill='#ffffff'/><rect x='20' width='10' height='20' fill='#009E60'/></svg>",
+                _c = "Ghana",
+                    "<svg viewBox='0 0 30 20'><rect width='30' height='6.67' fill='#CE1126'/><rect y='6.67' width='30' height='6.67' fill='#FCD116'/><rect y='13.33' width='30' height='6.67' fill='#006B3F'/><polygon points='15.00,6.70 15.78,8.93 18.14,8.98 16.26,10.41 16.94,12.67 15.00,11.32 13.06,12.67 13.74,10.41 11.86,8.98 14.22,8.93' fill='#000000'/></svg>",
+                _c = "Mali",
+                    "<svg viewBox='0 0 30 20'><rect width='10' height='20' fill='#14B53A'/><rect x='10' width='10' height='20' fill='#FCD116'/><rect x='20' width='10' height='20' fill='#CE1126'/></svg>",
+                _c = "Niger",
+                    "<svg viewBox='0 0 30 20'><rect width='30' height='6.67' fill='#E05206'/><rect y='6.67' width='30' height='6.67' fill='#ffffff'/><rect y='13.33' width='30' height='6.67' fill='#0DB02B'/><circle cx='15' cy='10' r='2.2' fill='#E05206'/></svg>",
+                _c = "Nigeria",
+                    "<svg viewBox='0 0 30 20'><rect width='10' height='20' fill='#008751'/><rect x='10' width='10' height='20' fill='#ffffff'/><rect x='20' width='10' height='20' fill='#008751'/></svg>",
+                _c = "Senegal",
+                    "<svg viewBox='0 0 30 20'><rect width='10' height='20' fill='#00853F'/><rect x='10' width='10' height='20' fill='#FDEF42'/><rect x='20' width='10' height='20' fill='#E31B23'/><polygon points='15.00,6.60 15.80,8.90 18.23,8.95 16.29,10.42 17.00,12.75 15.00,11.36 13.00,12.75 13.71,10.42 11.77,8.95 14.20,8.90' fill='#00853F'/></svg>",
+                _c = "Togo",
+                    "<svg viewBox='0 0 30 20'><rect width='30' height='20' fill='#006A4E'/><rect y='4' width='30' height='4' fill='#FFCE00'/><rect y='12' width='30' height='4' fill='#FFCE00'/><rect width='12' height='12' fill='#D21034'/><polygon points='6.00,2.60 6.80,4.90 9.23,4.95 7.29,6.42 8.00,8.75 6.00,7.36 4.00,8.75 4.71,6.42 2.77,4.95 5.20,4.90' fill='#ffffff'/></svg>",
+                "<div style='width:30px;height:20px;background:#ECE8DF;border-radius:3px'></div>"
+            )
+        VAR _flag = "<span class='wwp-flag'>" & _flagSvg & "</span>"
+        VAR _on = [@on] = 1
+        VAR _cellsHtml =
+            CONCATENATEX (
+                _themeTot,
+                VAR _t = DimProject[Macro Thematic Focus]
+                VAR _colOn = [@ton] = 1
+                VAR _n =
+                    COALESCE (
+                        MAXX ( FILTER ( _cells, BridgeProjectCountry[Country] = _c && DimProject[Macro Thematic Focus] = _t ), [@n] ),
+                        0
+                    )
+                VAR _seats =
+                    FILTER ( _agCells, BridgeProjectCountry[Country] = _c && DimProject[Macro Thematic Focus] = _t )
+                VAR _top3 = TOPN ( 3, _seats, [@a], DESC, DimProject[Agency], ASC )
+                VAR _rest = COUNTROWS ( _seats ) - COUNTROWS ( _top3 )
+                VAR _pills =
+                    CONCATENATEX (
+                        _top3,
+                        "<span class='wwp-pill' title='" & DimProject[Agency] & ": " & [@a] & " project" & IF ( [@a] > 1, "s" ) & "'>"
+                            & DimProject[Agency] & "<b>" & [@a] & "</b></span>",
+                        "",
+                        [@a], DESC, DimProject[Agency], ASC
+                    )
+                        & IF ( _rest > 0, "<span class='wwp-more'>+" & _rest & "</span>" )
+                VAR _content =
+                    IF (
+                        NOT _on || NOT _colOn,
+                        "<span class='wwp-dash'>&ndash;</span>",
+                        IF (
+                            _n = 0,
+                            "<span class='wwp-empty' title='No project recorded'>no project</span>",
+                            IF ( ISEMPTY ( _seats ), "<span style='font-size:14px;color:#6F6B63'>agency not recorded</span>", "<div class='wwp-row1'>" & _pills & "</div>" )
+                        )
+                    )
+                RETURN
+                    "<td class='wwp-pc" & IF ( NOT _colOn, " wwp-offc" ) & "' style='--c:" & [@hex] & "'>" & _content & "</td>",
+                "",
+                [@ton], DESC, [@t], DESC, DimProject[Macro Thematic Focus], ASC
+            )
+        RETURN
+            "<tr" & IF ( NOT _on, " class='wwp-offrow' title='Not in current selection'" ) & "><td class='wwp-cc'><span class='wwp-cty'>" & _flag & _c & "</span>" & IF ( _on, "<span class='wwp-cnt' title='" & [@tot] & " projects'>" & FORMAT ( [@tot], "0" ) & "</span>" ) & "</td>"
+                & _cellsHtml
+                & "</tr>",
+        "",
+        [@on], DESC,
+        [@tot], DESC,
+        BridgeProjectCountry[Country], ASC
+    )
+
+VAR _footer =
+    "<div class='wwp-foot'>Top 3 agencies per cell. Active + planned."
+        & IF ( _anyOff, " Greyed countries and themes are outside the current selection." )
+        & "</div>"
+
+RETURN
+    _css
+        & "<div class='wwp'>"
+        & "<div class='wwp-hd'><span class='d'></span><b>Who works where</b></div>"
+        & "<div class='wwp-bd'>"
+        & "<div class='wwp-sc'><table class='wwp-tbl'>"
+        & "<colgroup><col style='width:17%'/><col style='width:20.75%'/><col style='width:20.75%'/><col style='width:20.75%'/><col style='width:20.75%'/></colgroup>"
+        & "<thead>" & _header & "</thead>"
+        & "<tbody>" & _body & "</tbody>"
+        & "</table></div>"
+        & _footer
+        & "</div></div>"
